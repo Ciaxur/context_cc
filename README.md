@@ -1,3 +1,3 @@
 # Context Implementation
-Implementation of golang's Context in C++
+A naive implementation of golang's Context in C++
 

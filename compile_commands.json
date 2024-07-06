@@ -4,9 +4,32 @@
       "/usr/bin/g++",
       "-c",
       "-I/usr/include",
+      "-I./include",
+      "channel.cc"
+    ],
+    "directory": "/home/omar/Documents/dev/cc_playground/context_impl",
+    "file": "/home/omar/Documents/dev/cc_playground/context_impl/channel.cc"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-c",
+      "-I/usr/include",
+      "-I./include",
       "main.cc"
     ],
-    "directory": "/tmp/tmp.rA96bW2Mkd",
-    "file": "/tmp/tmp.rA96bW2Mkd/main.cc"
+    "directory": "/home/omar/Documents/dev/cc_playground/context_impl",
+    "file": "/home/omar/Documents/dev/cc_playground/context_impl/main.cc"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-c",
+      "-I/usr/include",
+      "-I./include",
+      "socket_context.cc"
+    ],
+    "directory": "/home/omar/Documents/dev/cc_playground/context_impl",
+    "file": "/home/omar/Documents/dev/cc_playground/context_impl/socket_context.cc"
   }
 ]

@@ -1,127 +1,151 @@
 #include <chrono>
 #include <cstdio>
-#include <mutex>
+#include <cstdlib>
+#include <cstring>
 #include <spdlog/spdlog.h>
 #include <sys/epoll.h>
+#include <sys/socket.h>
 #include <thread>
+#include <tuple>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-struct channel {
-  // Read/Write pipes.
-  int pipe_fds[2];
-  std::mutex mtx;
+#include "include/socket_context.h"
 
-  void write_data(const char *data, size_t size) {
-    std::lock_guard<std::mutex> lock(mtx);
-    write(pipe_fds[1], data, size);
-  }
+void start_consumer(SocketContext *ctx) {
+  try {
+    while(!ctx->done()) {
+      char buffer[255];
+      size_t data_read = ctx->read(buffer, 255);
 
-  void read_data() {
-    //TODO:
-  }
-
-  void cleanup() {
-    std::lock_guard<std::mutex> lock(mtx);
-    if(close(pipe_fds[0]))
-      perror("Failed to close read pipe");
-    if(close(pipe_fds[1]))
-      perror("Failed to close write pipe");
-  }
-};
-
-struct shared_data {
-  int epoll_fd;
-  std::mutex mtx;
-  channel* done_channel;
-  bool is_done = false;
-
-  void cancel() {
-    std::lock_guard<std::mutex> lock(mtx);
-    const char* done_event = "done";
-    done_channel->write_data(done_event, strlen(done_event));
-  }
-
-  int close_data() {
-    std::lock_guard<std::mutex> lock(mtx);
-    if (!is_done) {
-      if(close(epoll_fd)) {
-        perror("Failed to close epoll fd");
-        return -1;
-      }
+      spdlog::info("Read {}B from client -> '{}'", data_read, buffer);
     }
-    return 0;
+  } catch(SocketContextCancelled err) {
+    spdlog::info("Consumer: Context cancelled -> {}", err.what());
+  } catch(SocketContextError err) {
+    spdlog::info("Consumer: Context error -> {}", err.what());
   }
-};
-
-
-channel* create_channel() {
-  channel *chan = new channel{};
-  if (pipe(chan->pipe_fds) == -1) {
-    perror("Failed to create pipe");
-    return nullptr;
-  }
-  return chan;
+  spdlog::info("Closing consumer...");
 }
 
-void clean_up(shared_data *sd) {
-  if (sd->done_channel) {
-    sd->done_channel->cleanup();
-    delete sd->done_channel;
+int create_client() {
+  int sock;
+  struct sockaddr_in srv_addr;
+
+  if ( (sock = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) {
+    perror("Failed to create client socket");
+    exit(EXIT_FAILURE);
   }
-  sd->close_data();
+
+  srv_addr.sin_family = AF_INET;
+  srv_addr.sin_port   = htons(6969);
+
+  if (inet_pton(AF_INET, "127.0.0.1", &srv_addr.sin_addr) < 0) {
+    perror("inet_pton");
+    exit(EXIT_FAILURE);
+  }
+
+  if ( connect(sock, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) == -1 ) {
+    perror("Failed to connect to server");
+    exit(EXIT_FAILURE);
+  }
+
+  return sock;
 }
 
-void start_worker(shared_data *sd) {
-  constexpr int MAX_EVENTS = 10;
-  struct epoll_event events[MAX_EVENTS];
+void start_producer(SocketContext *ctx) {
+  try {
+    while(!ctx->done()) {
+      const char* msg = "hello from client";
+      ctx->write(msg, strlen(msg));
+      spdlog::info("Producer: Wrote '{}' to server", msg);
 
-  while (true) {
-    int num_events = epoll_wait(sd->epoll_fd, events, MAX_EVENTS, -1);
-    if (num_events == -1) {
-      perror("epoll_wait failed");
-      return;
+      char buffer[255];
+      spdlog::info("Producer: Waiting on server...");
+      size_t bytes_read = ctx->read(buffer, 255);
+      spdlog::info("Producer: Read {}B from server", bytes_read);
     }
-
-    spdlog::info("Event polled!");
-    break;
+  } catch(SocketContextCancelled err) {
+    spdlog::info("Producer: Context cancelled -> {}", err.what());
+  } catch(SocketContextError err) {
+    spdlog::info("Producer: Context error -> {}", err.what());
   }
+  spdlog::info("Closing producer...");
 }
 
+std::tuple<int, sockaddr_in> create_server() {
+  int sock_fd;
 
-// TODO: make sure segfaults are good. cause we not cleaning up nor checking.
+  if ( (sock_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0 ) {
+    perror("Failed to create server socket");
+    exit(EXIT_FAILURE);
+  }
+
+  int opt = 1;
+  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEADDR, &opt, sizeof(opt))) {
+    perror("setsockopt");
+    exit(EXIT_FAILURE);
+  }
+
+
+  struct sockaddr_in address;
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = INADDR_ANY; // 0.0.0.0
+  address.sin_port = htons(6969);
+
+  if (bind(sock_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+    perror("Failed to bind");
+    exit(EXIT_FAILURE);
+  }
+
+  return std::make_tuple(sock_fd, address);
+}
+
 int main() {
-  shared_data sd{};
+  std::tuple<int, sockaddr_in> svr = create_server();
+  int server_sock = std::get<0>(svr);
+  sockaddr_in svr_addr = std::get<1>(svr);
+  socklen_t addrlen = sizeof(svr_addr);
 
-  // Create epoll event.
-  sd.epoll_fd = epoll_create1(0);
-  if (sd.epoll_fd == -1) {
-    perror("Failed to create epoll");
-    return -1;
+  // Listen for one client.
+  if (listen(server_sock, 1) == -1) {
+    perror("Failed to listen");
+    exit(EXIT_FAILURE);
   }
 
-  sd.done_channel = create_channel();
-  if (sd.done_channel == nullptr) {
-    return -1;
+  // Create a client socket that connects to this server and run in producer.
+  spdlog::info("Starting producer...");
+  SocketContext* client_ctx = new SocketContext(create_client());
+  std::thread producer_t{start_producer, client_ctx};
+
+  // Start accepting client connections.
+  int client_sock;
+  if( ( client_sock = accept(server_sock, (struct sockaddr*)&svr_addr, &addrlen) ) == -1 ) {
+    perror("Failed to accept");
+    exit(EXIT_FAILURE);
   }
 
-  // Add channel to epoll.
-  struct epoll_event epoll_event;
-  epoll_event.events    = EPOLLIN;
-  epoll_event.data.fd   = sd.done_channel->pipe_fds[0];
+  spdlog::info("Starting consumer...");
+  SocketContext* server_ctx = new SocketContext(client_sock);
 
-  if (epoll_ctl(sd.epoll_fd, EPOLL_CTL_ADD, sd.done_channel->pipe_fds[0], &epoll_event) == -1) {
-    perror("Failed to add epoll event");
-    return -1;
-  }
-
-  std::thread t{start_worker, &sd};
+  std::thread consumer_t{start_consumer, server_ctx};
   std::this_thread::sleep_for(std::chrono::seconds(3));
 
   spdlog::info("Broadcasting closure");
-  sd.cancel();
-  t.join();
+  server_ctx->cancel();
+  consumer_t.join();
+  delete server_ctx;
+
+  producer_t.join();
+  delete client_ctx;
 
   spdlog::info("Cleaning up...");
-  clean_up(&sd);
+  if (close(server_sock) == -1)
+    perror("Failed to close server socket");
+
+
   return 0;
 }
