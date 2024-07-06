@@ -42,6 +42,8 @@ check:
 		--std=$(CC_VERSION) \
 		$(SRCS)
 
+valgrind: $(TARGET)
+	valgrind ./$(TARGET)
 
 debug:
 	$(info Sources:)
