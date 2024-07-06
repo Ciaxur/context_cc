@@ -56,7 +56,7 @@ public:
   *
   * @throws ChannelError exception upon channel instantation failure.
   */
-  SocketContext(int fd);
+  explicit SocketContext(int fd);
 
   /**
    * Desctructor which handles closing the underlying socket.

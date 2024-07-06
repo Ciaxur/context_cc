@@ -21,7 +21,7 @@ void Channel::write(const char *data, size_t size) {
 }
 
 size_t Channel::read(char *buffer, size_t bytes_to_read) {
-  size_t bytes_read = ::read(this->pipe_fds[0], buffer, bytes_to_read);
+  ssize_t bytes_read = ::read(this->pipe_fds[0], buffer, bytes_to_read);
   if (bytes_read == -1) {
     perror("Failed to read data off the read pipe");
     return 0;

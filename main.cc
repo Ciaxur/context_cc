@@ -23,9 +23,9 @@ void start_consumer(SocketContext *ctx) {
 
       spdlog::info("Read {}B from client -> '{}'", data_read, buffer);
     }
-  } catch(SocketContextCancelled err) {
+  } catch(SocketContextCancelled &err) {
     spdlog::info("Consumer: Context cancelled -> {}", err.what());
-  } catch(SocketContextError err) {
+  } catch(SocketContextError &err) {
     spdlog::info("Consumer: Context error -> {}", err.what());
   }
   spdlog::info("Closing consumer...");
@@ -48,7 +48,7 @@ int create_client() {
     exit(EXIT_FAILURE);
   }
 
-  if ( connect(sock, (struct sockaddr*)&srv_addr, sizeof(srv_addr)) == -1 ) {
+  if ( connect(sock, reinterpret_cast<sockaddr*>(&srv_addr), sizeof(srv_addr)) == -1 ) {
     perror("Failed to connect to server");
     exit(EXIT_FAILURE);
   }
@@ -68,9 +68,9 @@ void start_producer(SocketContext *ctx) {
       size_t bytes_read = ctx->read(buffer, 255);
       spdlog::info("Producer: Read {}B from server", bytes_read);
     }
-  } catch(SocketContextCancelled err) {
+  } catch(SocketContextCancelled &err) {
     spdlog::info("Producer: Context cancelled -> {}", err.what());
-  } catch(SocketContextError err) {
+  } catch(SocketContextError &err) {
     spdlog::info("Producer: Context error -> {}", err.what());
   }
   spdlog::info("Closing producer...");
@@ -85,7 +85,7 @@ std::tuple<int, sockaddr_in> create_server() {
   }
 
   int opt = 1;
-  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEADDR, &opt, sizeof(opt))) {
+  if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
     perror("setsockopt");
     exit(EXIT_FAILURE);
   }
@@ -96,7 +96,7 @@ std::tuple<int, sockaddr_in> create_server() {
   address.sin_addr.s_addr = INADDR_ANY; // 0.0.0.0
   address.sin_port = htons(6969);
 
-  if (bind(sock_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+  if (bind(sock_fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) < 0) {
     perror("Failed to bind");
     exit(EXIT_FAILURE);
   }
@@ -123,7 +123,7 @@ int main() {
 
   // Start accepting client connections.
   int client_sock;
-  if( ( client_sock = accept(server_sock, (struct sockaddr*)&svr_addr, &addrlen) ) == -1 ) {
+  if( ( client_sock = accept(server_sock, reinterpret_cast<sockaddr*>(&svr_addr), &addrlen) ) == -1 ) {
     perror("Failed to accept");
     exit(EXIT_FAILURE);
   }

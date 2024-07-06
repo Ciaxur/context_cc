@@ -14,9 +14,8 @@ SocketContext::SocketContext(int fd): cancel_chan(), is_done(false), sock_fd(fd)
   }
 
   // Track the cancellation channel's read pipe to the epoll.
-  struct epoll_event epoll_cancel_event {
-    .events  = EPOLLIN,
-  };
+  struct epoll_event epoll_cancel_event;
+  epoll_cancel_event.events  = EPOLLIN,
   epoll_cancel_event.data.fd = this->cancel_chan.pipe_fds[0];
 
   if (epoll_ctl(this->epoll_fd, EPOLL_CTL_ADD, this->cancel_chan.pipe_fds[0], &epoll_cancel_event) == -1) {
@@ -25,9 +24,8 @@ SocketContext::SocketContext(int fd): cancel_chan(), is_done(false), sock_fd(fd)
   }
 
   // Track the given socket file descriptor to the epoll.
-  struct epoll_event epoll_sock_fd_event{
-    .events  = EPOLLIN,
-  };
+  struct epoll_event epoll_sock_fd_event;
+  epoll_sock_fd_event.events = EPOLLIN;
   epoll_sock_fd_event.data.fd = this->sock_fd;
 
   if (epoll_ctl(this->epoll_fd, EPOLL_CTL_ADD, this->sock_fd, &epoll_sock_fd_event) == -1) {
@@ -57,7 +55,7 @@ void SocketContext::cancel() noexcept {
 size_t SocketContext::write(const char *data, size_t size) {
   if (this->done()) throw SocketContextCancelled("context closed");
 
-  size_t bytes_written = ::write(this->sock_fd, data, size);
+  ssize_t bytes_written = ::write(this->sock_fd, data, size);
   if (bytes_written == -1) {
     perror("Failed to write to socket");
     this->cancel();
@@ -79,14 +77,14 @@ size_t SocketContext::read(char *buffer, size_t bytes_to_read) {
     throw SocketContextError("Failed to poll for I/O events");
   }
 
-  for (size_t i = 0; i < num_events; i++) {
+  for (int i = 0; i < num_events; i++) {
     if (events[i].data.fd == this->cancel_chan.pipe_fds[0]) {
       this->cancel();
       throw SocketContextCancelled("context cancelled");
     }
   }
 
-  size_t bytes_read = ::read(this->sock_fd, buffer, bytes_to_read);
+  ssize_t bytes_read = ::read(this->sock_fd, buffer, bytes_to_read);
 
   if (bytes_read == -1) {
     perror("Failed to read from underlying socket");

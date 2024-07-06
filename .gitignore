@@ -1,2 +1,5 @@
 .cache
-a.out
+app
+*.o
+compile_commands.json
+.vscode*
