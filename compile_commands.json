@@ -1,0 +1,12 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-c",
+      "-I/usr/include",
+      "main.cc"
+    ],
+    "directory": "/tmp/tmp.rA96bW2Mkd",
+    "file": "/tmp/tmp.rA96bW2Mkd/main.cc"
+  }
+]
