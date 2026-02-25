@@ -1,4 +1,4 @@
-#include "include/channel.h"
+#include "channel.h"
 
 Channel::Channel() {
   if (pipe(this->pipe_fds) == -1) {

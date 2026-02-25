@@ -4,16 +4,18 @@ OPTIMIZATIONS := -O3 -g
 CC_VERSION := c++17
 FLAGS := -std=$(CC_VERSION) -lpthread -lfmt -Wall -Wextra -Wno-unused-parameter $(OPTIMIZATIONS)
 INCLUDES := $(patsubst %,-I%, \
-	./includes/ \
+	./include \
 	$(wildcard ./include/**/) \
 )
 
 # Source files
-SRCS 	:= $(wildcard ./*.cc ./*.cpp)
+SRCS 	:= $(wildcard ./src/*.cc ./src/*.cpp)
 _OBJS := $(SRCS:.cc=.o)
 OBJS 	:= $(_OBJS:.cpp=.o) $(GLFW_OBJS)
 
 all: check $(TARGET)
+
+build: $(TARGET)
 
 # Main build binary target.
 # $@ -> $(TARGET)
@@ -60,7 +62,8 @@ debug:
 
 help:
 	@echo "Available targets:"
-	@echo "  all   				: Builds everything"
+	@echo "  all   				: Runs everything"
+	@echo "  build 				: Build everything"
 	@echo "  check  			: Runs static analysis on all source files"
 	@echo "  clean  			: Cleans up all built objects, cache, and binaries"
 	@echo "  debug  			: Prints debug menu, which contains resolved variables"
